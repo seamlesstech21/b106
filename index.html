@@ -324,8 +324,8 @@ function buildSelects(){
   st.innerHTML = '<option value="">— 선택 —</option>' + DB.staff.map(s=>`<option>${s}</option>`).join('');
 
   // 분류 드롭다운 (설정 시트 기반)
-  const cats = (DB.categories && DB.categories.length) ? DB.categories : ['사이니지','브라켓','모니터','기타'];
-  document.getElementById('new-category').innerHTML = cats.map(c=>`<option>${c}</option>`).join('');
+  const catList = (DB.categories && DB.categories.length) ? DB.categories : ['사이니지','브라켓','모니터','기타'];
+  document.getElementById('new-category').innerHTML = catList.map(c=>`<option>${c}</option>`).join('');
 
   fillReasons();
 }
