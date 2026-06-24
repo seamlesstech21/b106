@@ -223,9 +223,7 @@
     <span class="label">모델명 *</span>
     <input type="text" id="new-model" placeholder="예: LH55QMCEBGCXKR">
     <span class="label">분류</span>
-    <select id="new-category">
-      <option>사이니지</option><option>브라켓</option><option>기타</option>
-    </select>
+    <select id="new-category"></select>
     <span class="label">규격 / 비고</span>
     <input type="text" id="new-spec" placeholder="예: 55인치, 벽걸이형">
     <span class="label">안전재고 (이 수량 미만이면 경고 표시)</span>
@@ -273,7 +271,7 @@
 
 <script>
 /* ───────── 상태 ───────── */
-let DB = { items: [], staff: [], inReasons: [], outReasons: [], stock: {}, logs: [] };
+let DB = { items: [], staff: [], inReasons: [], outReasons: [], categories: [], stock: {}, logs: [] };
 let mode = '입고';
 let picked = null;          // 선택된 품목
 let scanContext = 'io';     // 'io' = 입출고용 스캔, 'register' = 품목등록용 스캔
@@ -281,7 +279,7 @@ let scanContext = 'io';     // 'io' = 입출고용 스캔, 'register' = 품목�
 /* ═══════════════════════════════════════════════════════════
    ⚙️ 여기에 Apps Script 웹앱 URL(.../exec)을 붙여넣으세요
    ═══════════════════════════════════════════════════════════ */
-const API_URL = "https://script.google.com/macros/s/AKfycby4tvDEfPGHrh8ezcGD0CM9iVE5aWmgP-JvvSHQMfZgoSAzCP-vYYiXVUS2keDbAvPQzw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyh34j_sdLdLgS9VsoRYllnzA-Xtd2kPh0LwBOiS3mLTaPDDDM_7q-hBYDb-WxPsbVsNA/exec";
 
 /* ───────── API 호출 헬퍼 ───────── */
 async function apiGet(){
@@ -324,6 +322,11 @@ function buildSelects(){
   });
   const st = document.getElementById('staff');
   st.innerHTML = '<option value="">— 선택 —</option>' + DB.staff.map(s=>`<option>${s}</option>`).join('');
+
+  // 분류 드롭다운 (설정 시트 기반)
+  const cats = (DB.categories && DB.categories.length) ? DB.categories : ['사이니지','브라켓','모니터','기타'];
+  document.getElementById('new-category').innerHTML = cats.map(c=>`<option>${c}</option>`).join('');
+
   fillReasons();
 }
 
