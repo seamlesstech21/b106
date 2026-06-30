@@ -41,10 +41,12 @@
 
   /* 입고/출고 토글 */
   .seg{display:flex;gap:8px;margin-bottom:14px}
-  .seg button{flex:1;padding:14px;border:1.5px solid var(--line);border-radius:10px;background:#fff;
-       font-size:16px;font-weight:800;color:var(--sub);font-family:inherit}
+  .seg button{flex:1;padding:14px 6px;border:1.5px solid var(--line);border-radius:10px;background:#fff;
+       font-size:15px;font-weight:800;color:var(--sub);font-family:inherit}
   .seg button.on-in{background:var(--in-soft);border-color:var(--in);color:var(--in)}
   .seg button.on-out{background:var(--out-soft);border-color:var(--out);color:var(--out)}
+  .seg button.on-plan{background:#eef2ff;border-color:#6366f1;color:#4f46e5}
+  .submit.plan{background:#4f46e5}
 
   /* 스캔 버튼 */
   .scan-btn{width:100%;padding:15px;border:none;border-radius:10px;background:var(--navy2);color:#fff;
@@ -87,6 +89,21 @@
   .qty-big.low{color:var(--out)} .qty-big.zero{color:var(--danger)}
   .badge{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:5px;margin-top:3px;display:inline-block}
   .badge.low{background:var(--out-soft);color:var(--out)} .badge.zero{background:#fde8e8;color:var(--danger)}
+  .rsv-txt{display:block;font-size:11.5px;color:#4f46e5;font-weight:700;margin-top:3px}
+
+  /* 입출고목록 히스토리 카드 */
+  .hist-row{padding:12px 2px;border-bottom:1px solid var(--line)}
+  .hist-row:last-child{border-bottom:none}
+  .hist-top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .hist-date{font-size:13px;font-weight:700;color:#4f46e5}
+  .hist-qty{margin-left:auto;font-size:15px;font-weight:800;color:var(--navy2)}
+  .hist-model{font-weight:700;font-size:14.5px}
+  .hist-sub{font-size:12.5px;color:var(--txt);margin-top:2px}
+  .hist-sub2{font-size:11.5px;color:var(--sub);margin-top:2px}
+  .hist-actions{display:flex;gap:8px;margin-top:9px}
+  .hist-actions .act{flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:700;font-family:inherit;border:1.5px solid var(--line);background:#fff}
+  .act.confirm{background:var(--out);color:#fff;border-color:var(--out)}
+  .act.cancel{background:#fff;color:var(--sub)}
 
   /* 품목 목록 */
   .item-row{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid var(--line)}
@@ -100,9 +117,9 @@
   nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);
       display:flex;z-index:50;padding-bottom:env(safe-area-inset-bottom)}
   nav button{flex:1;padding:11px 0 9px;border:none;background:none;font-family:inherit;
-      font-size:11.5px;font-weight:700;color:var(--sub);display:flex;flex-direction:column;align-items:center;gap:3px}
+      font-size:10.5px;font-weight:700;color:var(--sub);display:flex;flex-direction:column;align-items:center;gap:3px}
   nav button.on{color:var(--blue)}
-  nav svg{width:22px;height:22px}
+  nav svg{width:21px;height:21px}
 
   /* 스캐너 오버레이 */
   #scanner-overlay{position:fixed;inset:0;background:#000;z-index:100;display:none;flex-direction:column}
@@ -158,6 +175,7 @@
     <div class="seg">
       <button id="btn-in" class="on-in" onclick="setMode('입고')">📥 입고</button>
       <button id="btn-out" onclick="setMode('출고')">📤 출고</button>
+      <button id="btn-plan" onclick="setMode('예약')">📅 예약</button>
     </div>
 
     <button class="scan-btn" onclick="openScanner('io')">
@@ -183,8 +201,15 @@
     <span class="label">담당자</span>
     <select id="staff"><option value="">— 선택 —</option></select>
 
-    <span class="label" id="reason-label">사유</span>
-    <select id="reason"></select>
+    <div id="reason-wrap">
+      <span class="label" id="reason-label">사유</span>
+      <select id="reason"></select>
+    </div>
+
+    <div id="plan-date-wrap" style="display:none">
+      <span class="label">출고 예정일자</span>
+      <input type="date" id="plan-date">
+    </div>
 
     <div id="site-wrap">
       <span class="label">현장명 / 거래처</span>
@@ -196,17 +221,34 @@
 
     <button class="submit in" id="submit-btn" onclick="submitLog(false)">입고 저장</button>
   </div>
+</div>
 
+<!-- ───────── 탭: 입출고목록 ───────── -->
+<div class="wrap hidden" id="view-list">
   <div class="card">
-    <div class="sec-title">최근 처리 내역</div>
-    <div id="recent-logs"><div style="color:var(--sub);font-size:13px">내역 없음</div></div>
+    <div class="seg">
+      <button id="lbtn-in" class="on-in" onclick="setListMode('입고')">입고</button>
+      <button id="lbtn-out" onclick="setListMode('출고')">출고</button>
+      <button id="lbtn-plan" onclick="setListMode('예약')">예약</button>
+    </div>
+    <div id="list-body"></div>
   </div>
 </div>
 
-<!-- ───────── 탭 2: 재고 현황 ───────── -->
+<!-- ───────── 탭: 재고 현황 ───────── -->
 <div class="wrap hidden" id="view-stock">
   <div class="card">
     <input type="text" id="stock-search" placeholder="모델명 검색" oninput="renderStock()">
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <select id="stock-filter" onchange="renderStock()" style="flex:1">
+        <option value="">전체 분류</option>
+      </select>
+      <select id="stock-sort" onchange="renderStock()" style="flex:1">
+        <option value="name">이름순</option>
+        <option value="category">분류순</option>
+        <option value="low">재고 적은순</option>
+      </select>
+    </div>
   </div>
   <div class="card" id="stock-list"></div>
 </div>
@@ -243,6 +285,9 @@
   <button id="tab-io" class="on" onclick="switchTab('io')">
     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/></svg>
     입출고</button>
+  <button id="tab-list" onclick="switchTab('list')">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+    입출고목록</button>
   <button id="tab-stock" onclick="switchTab('stock')">
     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4v10l8 4 8-4V7zM4 7l8 4 8-4M12 11v10"/></svg>
     재고 현황</button>
@@ -271,7 +316,7 @@
 
 <script>
 /* ───────── 상태 ───────── */
-let DB = { items: [], staff: [], inReasons: [], outReasons: [], categories: [], stock: {}, logs: [] };
+let DB = { items: [], staff: [], inReasons: [], outReasons: [], categories: [], stock: {}, reserved: {}, logs: [], inLogs: [], outLogs: [], plans: [] };
 let mode = '입고';
 let picked = null;          // 선택된 품목
 let scanContext = 'io';     // 'io' = 입출고용 스캔, 'register' = 품목등록용 스캔
@@ -279,7 +324,7 @@ let scanContext = 'io';     // 'io' = 입출고용 스캔, 'register' = 품목�
 /* ═══════════════════════════════════════════════════════════
    ⚙️ 여기에 Apps Script 웹앱 URL(.../exec)을 붙여넣으세요
    ═══════════════════════════════════════════════════════════ */
-const API_URL = "https://script.google.com/macros/s/AKfycbyh34j_sdLdLgS9VsoRYllnzA-Xtd2kPh0LwBOiS3mLTaPDDDM_7q-hBYDb-WxPsbVsNA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzg6I1ouon-ASeq5u1Rzle_XG7tdID9vbGoUcyVfB_x5VDDdxoRgsTr73Z6Yw_PaX8_zw/exec";
 
 /* ───────── API 호출 헬퍼 ───────── */
 async function apiGet(){
@@ -300,7 +345,7 @@ async function apiPost(payload){
 apiGet().then(d => {
   DB = d;
   buildSelects();
-  renderLogs(); renderStock(); renderItems();
+  renderStock(); renderItems(); renderList();
   document.getElementById('loading').classList.add('hidden');
 }).catch(e => {
   document.getElementById('loading').innerHTML =
@@ -327,23 +372,36 @@ function buildSelects(){
   const catList = (DB.categories && DB.categories.length) ? DB.categories : ['사이니지','브라켓','모니터','기타'];
   document.getElementById('new-category').innerHTML = catList.map(c=>`<option>${c}</option>`).join('');
 
+  // 재고현황 필터(분류) 옵션
+  const sf = document.getElementById('stock-filter');
+  if(sf) sf.innerHTML = '<option value="">전체 분류</option>' + catList.map(c=>`<option>${c}</option>`).join('');
+
   fillReasons();
 }
 
 function fillReasons(){
+  if(mode==='예약'){ return; }  // 예약은 사유 대신 예정일자 사용
   const rs = mode==='입고' ? DB.inReasons : DB.outReasons;
   document.getElementById('reason').innerHTML = rs.map(r=>`<option>${r}</option>`).join('');
 }
 
-/* ───────── 입고/출고 모드 ───────── */
+/* ───────── 입고/출고/예약 모드 ───────── */
 function setMode(m){
   mode = m;
-  document.getElementById('btn-in').className = m==='입고' ? 'on-in' : '';
-  document.getElementById('btn-out').className = m==='출고' ? 'on-out' : '';
+  document.getElementById('btn-in').className   = m==='입고' ? 'on-in' : '';
+  document.getElementById('btn-out').className  = m==='출고' ? 'on-out' : '';
+  document.getElementById('btn-plan').className = m==='예약' ? 'on-plan' : '';
+
   const sb = document.getElementById('submit-btn');
-  sb.textContent = m + ' 저장';
-  sb.className = 'submit ' + (m==='입고' ? 'in' : 'out');
-  document.getElementById('site-wrap').style.display = m==='출고' ? 'block' : 'none';
+  sb.textContent = (m==='예약' ? '예약 등록' : m + ' 저장');
+  sb.className = 'submit ' + (m==='입고' ? 'in' : m==='출고' ? 'out' : 'plan');
+
+  // 현장명: 출고·예약에서 표시
+  document.getElementById('site-wrap').style.display = (m==='출고' || m==='예약') ? 'block' : 'none';
+  // 사유: 입고·출고에서만 / 예정일자: 예약에서만
+  document.getElementById('reason-wrap').style.display    = (m==='예약') ? 'none' : 'block';
+  document.getElementById('plan-date-wrap').style.display = (m==='예약') ? 'block' : 'none';
+
   fillReasons();
   showPicked();
 }
@@ -379,8 +437,12 @@ function showPicked(){
   p.classList.add('show');
   document.getElementById('picked-model').textContent = picked.model;
   const q = DB.stock[picked.barcode] || 0;
-  document.getElementById('picked-stock').textContent =
-    picked.category + ' · 현재고 ' + q + '개' + (picked.spec ? ' · ' + picked.spec : '');
+  const rsv = (DB.reserved && DB.reserved[picked.barcode]) || 0;
+  const avail = q - rsv;
+  let stockTxt = picked.category + ' · 실재고 ' + q + '개';
+  if(rsv > 0) stockTxt += ' · 예약 ' + rsv + ' · 가용 ' + avail;
+  if(picked.spec) stockTxt += ' · ' + picked.spec;
+  document.getElementById('picked-stock').textContent = stockTxt;
 }
 
 function stepQty(d){
@@ -388,32 +450,62 @@ function stepQty(d){
   q.value = Math.max(1, (parseInt(q.value)||1) + d);
 }
 
-/* ───────── 입출고 저장 ───────── */
+/* ───────── 입출고/예약 저장 ───────── */
 function submitLog(force){
   if(!picked){ toast('품목을 먼저 스캔하거나 선택해주세요'); return; }
+  const qty = parseInt(document.getElementById('qty').value)||0;
+  const staff = document.getElementById('staff').value;
+  const btn = document.getElementById('submit-btn');
+
+  // ── 예약(출고예정) ──
+  if(mode==='예약'){
+    const plan = {
+      barcode: picked.barcode,
+      model: picked.model,
+      qty: qty,
+      staff: staff,
+      date: document.getElementById('plan-date').value,
+      site: document.getElementById('site').value
+    };
+    if(!plan.date){ toast('예정일자를 입력해주세요'); return; }
+    btn.disabled = true; btn.textContent = '등록 중…';
+    apiPost({ action:'addPlan', plan: plan }).then(res=>{
+      btn.disabled = false; btn.textContent = '예약 등록';
+      if(res.ok){
+        DB.reserved = res.reserved; DB.plans = res.plans;
+        renderStock(); showPicked();
+        toast('✅ ' + res.msg);
+        document.getElementById('qty').value = 1;
+        document.getElementById('site').value = '';
+        if(navigator.vibrate) navigator.vibrate([60,40,60]);
+      } else toast('⚠️ ' + res.msg);
+    }).catch(e=>{ btn.disabled=false; btn.textContent='예약 등록'; toast('등록 실패: '+e.message); });
+    return;
+  }
+
+  // ── 입고/출고 ──
   const entry = {
     type: mode,
     barcode: picked.barcode,
     model: picked.model,
-    qty: parseInt(document.getElementById('qty').value)||0,
-    staff: document.getElementById('staff').value,
+    qty: qty,
+    staff: staff,
     site: (mode==='출고' ? document.getElementById('site').value : '') ||
           document.getElementById('reason').value,
     note: document.getElementById('note').value,
     force: force
   };
-  // 사유 + 현장명 합치기
   if(mode==='출고' && document.getElementById('site').value){
     entry.site = document.getElementById('reason').value + ' / ' + document.getElementById('site').value;
   }
-  const btn = document.getElementById('submit-btn');
   btn.disabled = true; btn.textContent = '저장 중…';
 
   apiPost({ action:'save', entry: entry }).then(res=>{
     btn.disabled = false; btn.textContent = mode + ' 저장';
     if(res.ok){
       DB.stock = res.stock; DB.logs = res.logs;
-      renderLogs(); renderStock(); showPicked();
+      reloadData();
+      renderStock(); showPicked();
       toast('✅ ' + res.msg);
       document.getElementById('qty').value = 1;
       document.getElementById('note').value = '';
@@ -427,6 +519,11 @@ function submitLog(force){
     btn.disabled = false; btn.textContent = mode + ' 저장';
     toast('저장 실패: ' + e.message);
   });
+}
+
+/* 입출고목록 최신화를 위해 전체 데이터 재조회 */
+function reloadData(){
+  apiGet().then(d=>{ DB = d; renderList(); renderStock(); }).catch(()=>{});
 }
 
 /* ───────── 신규 품목 등록 ───────── */
@@ -451,30 +548,118 @@ function submitItem(){
 }
 
 /* ───────── 렌더링 ───────── */
-function renderLogs(){
-  const el = document.getElementById('recent-logs');
-  if(!DB.logs.length){ el.innerHTML = '<div style="color:var(--sub);font-size:13px">내역 없음</div>'; return; }
-  el.innerHTML = DB.logs.map(l=>`
-    <div class="log-row">
-      <span class="tag ${l.type==='입고'?'in':'out'}">${l.type}</span>
-      <span class="log-m">${l.model}</span>
-      <span class="log-q">${l.qty}개</span>
-      <span class="log-s">${l.staff}·${l.time}</span>
+
+/* 입출고목록 탭: 입고/출고/예약 토글 */
+let listMode = '입고';
+function setListMode(m){
+  listMode = m;
+  document.getElementById('lbtn-in').className   = m==='입고' ? 'on-in' : '';
+  document.getElementById('lbtn-out').className  = m==='출고' ? 'on-out' : '';
+  document.getElementById('lbtn-plan').className = m==='예약' ? 'on-plan' : '';
+  renderList();
+}
+
+function renderList(){
+  const el = document.getElementById('list-body');
+  if(!el) return;
+
+  if(listMode==='예약'){
+    const plans = DB.plans || [];
+    if(!plans.length){ el.innerHTML = emptyMsg_('예약된 출고예정이 없습니다'); return; }
+    el.innerHTML = plans.map(p=>`
+      <div class="hist-row">
+        <div class="hist-top">
+          <span class="hist-date">📅 ${p.date}</span>
+          <span class="hist-qty">${p.qty}개</span>
+        </div>
+        <div class="hist-model">${p.model}</div>
+        <div class="hist-sub">${p.site || '-'} · ${p.staff}</div>
+        <div class="hist-actions">
+          <button class="act confirm" onclick="confirmPlan('${p.id}', false)">출고확정</button>
+          <button class="act cancel" onclick="cancelPlan('${p.id}')">취소</button>
+        </div>
+      </div>`).join('');
+    return;
+  }
+
+  // 입고/출고 내역
+  const logs = listMode==='입고' ? (DB.inLogs||[]) : (DB.outLogs||[]);
+  if(!logs.length){ el.innerHTML = emptyMsg_((listMode)+' 내역이 없습니다'); return; }
+  el.innerHTML = logs.map(l=>`
+    <div class="hist-row">
+      <div class="hist-top">
+        <span class="tag ${listMode==='입고'?'in':'out'}">${listMode}</span>
+        <span class="hist-qty">${l.qty}개</span>
+      </div>
+      <div class="hist-model">${l.model}</div>
+      <div class="hist-sub">${l.site || '-'}</div>
+      <div class="hist-sub2">${l.staff} · ${l.time}${l.note?' · '+l.note:''}</div>
     </div>`).join('');
+}
+
+function emptyMsg_(t){ return '<div style="color:var(--sub);font-size:13px;padding:8px 2px">'+t+'</div>'; }
+
+/* 예약 출고확정 */
+function confirmPlan(id, force){
+  if(!force && !confirm('이 예약을 실제 출고로 확정할까요?\n(실재고가 차감됩니다)')) return;
+  apiPost({ action:'confirmPlan', id:id, force:force }).then(res=>{
+    if(res.ok){
+      DB.stock=res.stock; DB.reserved=res.reserved; DB.plans=res.plans; DB.outLogs=res.outLogs;
+      renderList(); renderStock();
+      toast('✅ ' + res.msg);
+    } else if(res.warn){
+      if(confirm('⚠️ ' + res.msg)) confirmPlan(id, true);
+    } else toast('⚠️ ' + res.msg);
+  }).catch(e=>toast('확정 실패: '+e.message));
+}
+
+/* 예약 취소 */
+function cancelPlan(id){
+  if(!confirm('이 예약을 취소할까요?')) return;
+  apiPost({ action:'cancelPlan', id:id }).then(res=>{
+    if(res.ok){
+      DB.reserved=res.reserved; DB.plans=res.plans;
+      renderList(); renderStock();
+      toast('예약이 취소되었습니다');
+    } else toast('⚠️ ' + res.msg);
+  }).catch(e=>toast('취소 실패: '+e.message));
 }
 
 function renderStock(){
   const kw = (document.getElementById('stock-search').value||'').toLowerCase();
+  const filterCat = document.getElementById('stock-filter') ? document.getElementById('stock-filter').value : '';
+  const sortBy = document.getElementById('stock-sort') ? document.getElementById('stock-sort').value : 'name';
   const el = document.getElementById('stock-list');
-  const rows = DB.items.filter(i=>!kw || i.model.toLowerCase().includes(kw));
+
+  let rows = DB.items.filter(i =>
+    (!kw || i.model.toLowerCase().includes(kw)) &&
+    (!filterCat || i.category === filterCat)
+  );
+
+  // 정렬
+  rows = rows.slice().sort((a,b)=>{
+    if(sortBy==='category'){
+      if(a.category!==b.category) return a.category < b.category ? -1 : 1;
+      return a.model < b.model ? -1 : 1;
+    }
+    if(sortBy==='low'){
+      const qa=(DB.stock[a.barcode]||0), qb=(DB.stock[b.barcode]||0);
+      return qa - qb;
+    }
+    return a.model < b.model ? -1 : a.model > b.model ? 1 : 0; // 이름순
+  });
+
   if(!rows.length){ el.innerHTML = '<div style="color:var(--sub);font-size:13px">품목 없음</div>'; return; }
   el.innerHTML = rows.map(i=>{
     const q = DB.stock[i.barcode]||0;
+    const rsv = (DB.reserved && DB.reserved[i.barcode]) || 0;
+    const avail = q - rsv;
     const cls = q<=0 ? 'zero' : (q < i.safety ? 'low' : '');
     const badge = q<=0 ? '<span class="badge zero">재고없음</span>' :
                   (q < i.safety ? '<span class="badge low">안전재고 미만</span>' : '');
+    const rsvTxt = rsv>0 ? `<span class="rsv-txt">예약 ${rsv} · 가용 ${avail}</span>` : '';
     return `<div class="stock-row">
-      <div class="stock-info"><div class="m">${i.model}</div><div class="c">${i.category}${i.spec?' · '+i.spec:''}</div>${badge}</div>
+      <div class="stock-info"><div class="m">${i.model}</div><div class="c">${i.category}${i.spec?' · '+i.spec:''}</div>${badge}${rsvTxt}</div>
       <div class="qty-big ${cls}">${q}</div>
     </div>`;
   }).join('');
@@ -562,10 +747,12 @@ function handleScanResult(txt){
 
 /* ───────── 탭 전환 ───────── */
 function switchTab(t){
-  ['io','stock','items'].forEach(v=>{
+  ['io','list','stock','items'].forEach(v=>{
     document.getElementById('view-'+v).classList.toggle('hidden', v!==t);
     document.getElementById('tab-'+v).classList.toggle('on', v===t);
   });
+  if(t==='list') renderList();
+  if(t==='stock') renderStock();
 }
 
 /* ───────── 토스트 ───────── */
