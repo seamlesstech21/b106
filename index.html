@@ -358,7 +358,7 @@ let scanContext = 'io';     // 'io' = 입출고용 스캔, 'register' = 품목�
 /* ═══════════════════════════════════════════════════════════
    ⚙️ 여기에 Apps Script 웹앱 URL(.../exec)을 붙여넣으세요
    ═══════════════════════════════════════════════════════════ */
-const API_URL = "https://script.google.com/macros/s/AKfycbwv4s69OGyJ-XQa_gg85fJyx-iEJQ3bH768VVlCpx-gR_5QuNmJ8x_Q34Q_I-J_QTyjQg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzYwIxKFXZzxpW_SUTcnRuHi3o8ibVMRqt8KpW-tQxc1XvejWoknhunSrFXqNJIm6AYKQ/exec";
 
 /* ───────── API 호출 헬퍼 ───────── */
 async function apiGet(){
@@ -537,9 +537,11 @@ function submitLog(force){
   apiPost({ action:'save', entry: entry }).then(res=>{
     btn.disabled = false; btn.textContent = mode + ' 저장';
     if(res.ok){
+      // 서버 응답으로 갱신 (전체 재조회 없음 → 빠름)
       DB.stock = res.stock; DB.logs = res.logs;
-      reloadData();
-      renderStock(); showPicked();
+      if(res.inLogs)  DB.inLogs  = res.inLogs;
+      if(res.outLogs) DB.outLogs = res.outLogs;
+      renderStock(); renderList(); showPicked();
       toast('✅ ' + res.msg);
       document.getElementById('qty').value = 1;
       document.getElementById('note').value = '';
@@ -553,11 +555,6 @@ function submitLog(force){
     btn.disabled = false; btn.textContent = mode + ' 저장';
     toast('저장 실패: ' + e.message);
   });
-}
-
-/* 입출고목록 최신화를 위해 전체 데이터 재조회 */
-function reloadData(){
-  apiGet().then(d=>{ DB = d; renderList(); renderStock(); }).catch(()=>{});
 }
 
 /* ───────── 신규 품목 등록 ───────── */
