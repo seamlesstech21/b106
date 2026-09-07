@@ -167,6 +167,14 @@
   @keyframes sp{to{transform:rotate(360deg)}}
   .hidden{display:none!important}
 
+  /* 처리 중 오버레이 — 화면 전체를 덮어 중복 클릭 방지 */
+  #busy{position:fixed;inset:0;background:rgba(10,18,30,.42);z-index:400;
+      display:none;align-items:center;justify-content:center}
+  #busy.show{display:flex}
+  .busy-box{background:#fff;border-radius:14px;padding:26px 34px;display:flex;
+      flex-direction:column;align-items:center;gap:14px;box-shadow:0 10px 30px rgba(0,0,0,.22)}
+  .busy-msg{font-size:14.5px;font-weight:700;color:var(--navy2)}
+
   @media print{
     body *{display:none!important}
     #qr-modal.show{display:flex!important;background:#fff;position:static}
@@ -347,6 +355,14 @@
   </div>
 </div>
 
+<!-- 처리 중 오버레이 (중복 클릭 방지) -->
+<div id="busy">
+  <div class="busy-box">
+    <div class="spin"></div>
+    <div class="busy-msg" id="busy-msg">저장 중…</div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -504,7 +520,9 @@ function submitLog(force){
     };
     if(!plan.date){ toast('예정일자를 입력해주세요'); return; }
     btn.disabled = true; btn.textContent = '등록 중…';
+    busyOn('예약 등록 중…');
     apiPost({ action:'addPlan', plan: plan }).then(res=>{
+      busyOff();
       btn.disabled = false; btn.textContent = '예약 등록';
       if(res.ok){
         DB.reserved = res.reserved; DB.plans = res.plans;
@@ -514,7 +532,7 @@ function submitLog(force){
         document.getElementById('site').value = '';
         if(navigator.vibrate) navigator.vibrate([60,40,60]);
       } else toast('⚠️ ' + res.msg);
-    }).catch(e=>{ btn.disabled=false; btn.textContent='예약 등록'; toast('등록 실패: '+e.message); });
+    }).catch(e=>{ busyOff(); btn.disabled=false; btn.textContent='예약 등록'; toast('등록 실패: '+e.message); });
     return;
   }
 
@@ -534,8 +552,10 @@ function submitLog(force){
     entry.site = document.getElementById('reason').value + ' / ' + document.getElementById('site').value;
   }
   btn.disabled = true; btn.textContent = '저장 중…';
+  busyOn(mode + ' 저장 중…');
 
   apiPost({ action:'save', entry: entry }).then(res=>{
+    busyOff();
     btn.disabled = false; btn.textContent = mode + ' 저장';
     if(res.ok){
       // 서버 응답으로 갱신 (전체 재조회 없음 → 빠름)
@@ -553,6 +573,7 @@ function submitLog(force){
       toast('⚠️ ' + res.msg);
     }
   }).catch(e=>{
+    busyOff();
     btn.disabled = false; btn.textContent = mode + ' 저장';
     toast('저장 실패: ' + e.message);
   });
@@ -568,7 +589,9 @@ function submitItem(){
     safety: document.getElementById('new-safety').value
   };
   if(!item.model){ toast('모델명을 입력해주세요'); return; }
+  busyOn('품목 등록 중…');
   apiPost({ action:'addItem', item: item }).then(res=>{
+    busyOff();
     if(res.ok){
       DB.items = res.items;
       buildSelects(); renderItems(); renderStock();
@@ -576,7 +599,7 @@ function submitItem(){
       ['new-barcode','new-model','new-spec'].forEach(id=>document.getElementById(id).value='');
       document.getElementById('new-safety').value = 0;
     } else toast('⚠️ ' + res.msg);
-  }).catch(e=>toast('등록 실패: ' + e.message));
+  }).catch(e=>{ busyOff(); toast('등록 실패: ' + e.message); });
 }
 
 /* ───────── 렌더링 ───────── */
@@ -670,7 +693,9 @@ function confirmPlan(id, force, qty){
       : `${p.model} ${qty}개 전체를 출고 확정할까요?\n실재고가 차감됩니다.`;
     if(!confirm(msg)) return;
   }
+  busyOn('출고 확정 중…');
   apiPost({ action:'confirmPlan', id:id, force:force, qty:qty }).then(res=>{
+    busyOff();
     if(res.ok){
       DB.stock=res.stock; DB.reserved=res.reserved; DB.plans=res.plans; DB.outLogs=res.outLogs;
       renderList(); renderStock();
@@ -679,7 +704,7 @@ function confirmPlan(id, force, qty){
     } else if(res.warn){
       if(confirm('⚠️ ' + res.msg)) confirmPlan(id, true, qty);
     } else toast('⚠️ ' + res.msg);
-  }).catch(e=>toast('확정 실패: '+e.message));
+  }).catch(e=>{ busyOff(); toast('확정 실패: '+e.message); });
 }
 
 /* 이력 모달이 열려있으면 예약 목록만 갱신 */
@@ -696,14 +721,16 @@ function cancelPlan(id){
   const p = findPlan_(id);
   const info = p ? `\n\n${p.model} ${p.qty}개\n예정일 ${p.date} · ${p.site||'-'}` : '';
   if(!confirm('이 예약을 취소할까요?'+info)) return;
+  busyOn('예약 취소 중…');
   apiPost({ action:'cancelPlan', id:id }).then(res=>{
+    busyOff();
     if(res.ok){
       DB.reserved=res.reserved; DB.plans=res.plans;
       renderList(); renderStock();
       if(typeof histData !== 'undefined' && histData) refreshHistAfterAction_();
       toast('예약이 취소되었습니다');
     } else toast('⚠️ ' + res.msg);
-  }).catch(e=>toast('취소 실패: '+e.message));
+  }).catch(e=>{ busyOff(); toast('취소 실패: '+e.message); });
 }
 
 /* ───────── 품목 이력 모달 ───────── */
@@ -865,7 +892,7 @@ function openScanner(ctx){
 function onScanFile(ev){
   const file = ev.target.files && ev.target.files[0];
   if(!file) return;
-  toast('바코드 인식 중…');
+  busyOn('바코드 인식 중…');
 
   const url = URL.createObjectURL(file);
   const img = new Image();
@@ -891,15 +918,16 @@ function onScanFile(ev){
 
       const reader = new ZX.BrowserMultiFormatReader(hints);
       reader.decodeFromImageUrl(cv.toDataURL('image/png'))
-        .then(result => { handleScanResult(result.getText()); })
-        .catch(() => { toast('⚠️ 바코드를 못 읽었어요. 바코드가 화면에 꽉 차게, 밝게 다시 찍어주세요'); })
+        .then(result => { busyOff(); handleScanResult(result.getText()); })
+        .catch(() => { busyOff(); toast('⚠️ 바코드를 못 읽었어요. 바코드가 화면에 꽉 차게, 밝게 다시 찍어주세요'); })
         .finally(() => URL.revokeObjectURL(url));
     } catch(e){
+      busyOff();
       toast('⚠️ 인식 오류 — 다시 시도해주세요');
       URL.revokeObjectURL(url);
     }
   };
-  img.onerror = function(){ toast('⚠️ 이미지를 불러오지 못했어요'); URL.revokeObjectURL(url); };
+  img.onerror = function(){ busyOff(); toast('⚠️ 이미지를 불러오지 못했어요'); URL.revokeObjectURL(url); };
   img.src = url;
 }
 
@@ -925,6 +953,15 @@ function switchTab(t){
 
 /* ───────── 토스트 ───────── */
 let toastTimer = null;
+/* ───────── 처리 중 표시 (중복 클릭 방지) ───────── */
+function busyOn(msg){
+  document.getElementById('busy-msg').textContent = msg || '처리 중…';
+  document.getElementById('busy').classList.add('show');
+}
+function busyOff(){
+  document.getElementById('busy').classList.remove('show');
+}
+
 function toast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.style.display = 'block';
@@ -934,4 +971,3 @@ function toast(msg){
 </script>
 </body>
 </html>
-
