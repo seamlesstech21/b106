@@ -245,6 +245,7 @@
       <button id="lbtn-out" onclick="setListMode('출고')">출고</button>
       <button id="lbtn-plan" onclick="setListMode('예약')">예약</button>
     </div>
+    <input type="text" id="list-search" placeholder="담당자 · 모델명 · 현장/사유 검색" oninput="renderList()" style="margin-bottom:12px">
     <div id="list-body"></div>
   </div>
 </div>
@@ -358,7 +359,7 @@ let scanContext = 'io';     // 'io' = 입출고용 스캔, 'register' = 품목�
 /* ═══════════════════════════════════════════════════════════
    ⚙️ 여기에 Apps Script 웹앱 URL(.../exec)을 붙여넣으세요
    ═══════════════════════════════════════════════════════════ */
-const API_URL = "https://script.google.com/macros/s/AKfycbzYwIxKFXZzxpW_SUTcnRuHi3o8ibVMRqt8KpW-tQxc1XvejWoknhunSrFXqNJIm6AYKQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzVupE7_rnBQ43sCjgDT6tyYbJ34PpDNbKOB-tqmdaODmplBNyR7uRa_Nf8oAbxa1CmPA/exec";
 
 /* ───────── API 호출 헬퍼 ───────── */
 async function apiGet(){
@@ -594,9 +595,17 @@ function renderList(){
   const el = document.getElementById('list-body');
   if(!el) return;
 
+  const sEl = document.getElementById('list-search');
+  const kw = (sEl ? sEl.value : '').trim().toLowerCase();
+  const hit = (...fields) => !kw || fields.some(f => String(f||'').toLowerCase().includes(kw));
+
   if(listMode==='예약'){
-    const plans = DB.plans || [];
-    if(!plans.length){ el.innerHTML = emptyMsg_('예약된 출고예정이 없습니다'); return; }
+    const all = DB.plans || [];
+    const plans = all.filter(p => hit(p.model, p.staff, p.site));
+    if(!plans.length){
+      el.innerHTML = emptyMsg_(kw ? `'${kw}' 검색 결과가 없습니다` : '예약된 출고예정이 없습니다');
+      return;
+    }
     el.innerHTML = plans.map(p=>`
       <div class="hist-row">
         <div class="hist-top">
@@ -614,8 +623,12 @@ function renderList(){
   }
 
   // 입고/출고 내역
-  const logs = listMode==='입고' ? (DB.inLogs||[]) : (DB.outLogs||[]);
-  if(!logs.length){ el.innerHTML = emptyMsg_((listMode)+' 내역이 없습니다'); return; }
+  const src = listMode==='입고' ? (DB.inLogs||[]) : (DB.outLogs||[]);
+  const logs = src.filter(l => hit(l.model, l.staff, l.site, l.note));
+  if(!logs.length){
+    el.innerHTML = emptyMsg_(kw ? `'${kw}' 검색 결과가 없습니다` : listMode+' 내역이 없습니다');
+    return;
+  }
   el.innerHTML = logs.map(l=>`
     <div class="hist-row">
       <div class="hist-top">
@@ -636,21 +649,46 @@ function findPlan_(id){
 }
 
 /* 예약 출고확정 */
-function confirmPlan(id, force){
+function confirmPlan(id, force, qty){
   if(!force){
     const p = findPlan_(id);
-    const info = p ? `\n\n${p.model} ${p.qty}개\n예정일 ${p.date} · ${p.site||'-'}` : '';
-    if(!confirm('이 예약을 실제 출고로 확정할까요?\n실재고가 차감됩니다.'+info)) return;
+    if(!p){ toast('예약 정보를 찾을 수 없습니다'); return; }
+
+    // 확정 수량 입력 (기본값 = 예약 전체 수량)
+    const input = prompt(
+      `출고 확정\n\n${p.model}\n예정일 ${p.date} · ${p.site||'-'}\n예약 수량: ${p.qty}개\n\n확정할 수량을 입력하세요.\n(일부만 확정하면 나머지는 예약으로 남습니다)`,
+      String(p.qty)
+    );
+    if(input === null) return;                     // 취소
+    qty = parseInt(input, 10);
+    if(!qty || qty <= 0){ toast('수량을 올바르게 입력해주세요'); return; }
+    if(qty > p.qty){ toast(`예약 수량(${p.qty}개)보다 많이 확정할 수 없습니다`); return; }
+
+    const rest = p.qty - qty;
+    const msg = rest > 0
+      ? `${p.model} ${qty}개를 출고 확정할까요?\n실재고가 차감되고, 예약 ${rest}개가 남습니다.`
+      : `${p.model} ${qty}개 전체를 출고 확정할까요?\n실재고가 차감됩니다.`;
+    if(!confirm(msg)) return;
   }
-  apiPost({ action:'confirmPlan', id:id, force:force }).then(res=>{
+  apiPost({ action:'confirmPlan', id:id, force:force, qty:qty }).then(res=>{
     if(res.ok){
       DB.stock=res.stock; DB.reserved=res.reserved; DB.plans=res.plans; DB.outLogs=res.outLogs;
       renderList(); renderStock();
+      if(typeof histData !== 'undefined' && histData) refreshHistAfterAction_();
       toast('✅ ' + res.msg);
     } else if(res.warn){
-      if(confirm('⚠️ ' + res.msg)) confirmPlan(id, true);
+      if(confirm('⚠️ ' + res.msg)) confirmPlan(id, true, qty);
     } else toast('⚠️ ' + res.msg);
   }).catch(e=>toast('확정 실패: '+e.message));
+}
+
+/* 이력 모달이 열려있으면 예약 목록만 갱신 */
+function refreshHistAfterAction_(){
+  if(!histItem) return;
+  const bc = histItem.barcode;
+  histData.plans = (DB.plans||[]).filter(p=>p.barcode===bc)
+    .map(p=>({ id:p.id, date:p.date, qty:p.qty, site:p.site, staff:p.staff }));
+  renderHist();
 }
 
 /* 예약 취소 */
@@ -662,6 +700,7 @@ function cancelPlan(id){
     if(res.ok){
       DB.reserved=res.reserved; DB.plans=res.plans;
       renderList(); renderStock();
+      if(typeof histData !== 'undefined' && histData) refreshHistAfterAction_();
       toast('예약이 취소되었습니다');
     } else toast('⚠️ ' + res.msg);
   }).catch(e=>toast('취소 실패: '+e.message));
@@ -895,3 +934,4 @@ function toast(msg){
 </script>
 </body>
 </html>
+
